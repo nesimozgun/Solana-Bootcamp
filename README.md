@@ -4,6 +4,8 @@
 
 This is a smart contract designed to manage non-fungible tokens (NFTs). The contract provides essential functionalities for minting, burning, and transferring NFTs.
 
+NFTs created here are related to music videos published on social media and they have attributes as "video_url", "publisher", "category".
+
 ## Functionalities
 
 ### Mint
@@ -42,25 +44,25 @@ info:
     name: Unlicense
     identifier: Unlicense
 types:
-  GemMetadata:
+  VideoNftMetadata:
     solana:
       seeds:
-        - name: "gem"
+        - name: video
         - name: mint
           type: sol:pubkey
     fields:
-      - name: color
-        type: string
-        solana:
-          attributes: [ cap:16 ]
-      - name: rarity
-        type: string
-        solana:
-          attributes: [ cap:16 ]
-      - name: short_description
+      - name: video_url
         type: string
         solana:
           attributes: [ cap:255 ]
+      - name: publisher
+        type: string
+        solana:
+          attributes: [ cap:16 ]
+      - name: category
+        type: string
+        solana:
+          attributes: [ cap:16 ]
       - name: mint
         type: sol:pubkey
       - name: assoc_account
@@ -77,17 +79,17 @@ methods:
         type: csl_spl_token.Mint
         solana:
           attributes: [ init ]
-      - name: gem
-        type: GemMetadata
+      - name: video
+        type: VideoNftMetadata
         solana:
           attributes: [ init ]
           seeds:
             mint: mint
-      - name: color
+      - name: video_url
         type: string
-      - name: rarity
+      - name: publisher
         type: string
-      - name: short_description
+      - name: category
         type: string
   - name: transfer
     uses:
@@ -96,8 +98,8 @@ methods:
     inputs:
       - name: mint
         type: csl_spl_token.Mint
-      - name: gem
-        type: GemMetadata
+      - name: video
+        type: VideoNftMetadata
         solana:
           attributes: [ mut ]
           seeds:
@@ -108,8 +110,8 @@ methods:
     inputs:
       - name: mint
         type: csl_spl_token.Mint
-      - name: gem
-        type: GemMetadata
+      - name: video
+        type: VideoNftMetadata
         solana:
           attributes: [ mut ]
           seeds:
@@ -135,16 +137,16 @@ In the `program` directory, you will find a directory called `src`; inside this 
 Copy and paste the following code just below the comment line `// Implement your business logic here...` in the file `mint.rs`
 
 ```rust
-gem.data.color = color;
-gem.data.rarity = rarity;
-gem.data.short_description = short_description;
-gem.data.mint = *mint.info.key;
-gem.data.assoc_account = Some(*assoc_token_account.key);
+  video.data.video_url = video_url;
+	video.data.publisher = publisher;
+	video.data.category = category;
+	video.data.mint = *mint.info.key;
+	video.data.assoc_account = Some(*assoc_token_account.key);
 
-csl_spl_token::src::cpi::initialize_mint_2(for_initialize_mint_2, 0, *wallet.key, None)?;
-csl_spl_assoc_token::src::cpi::create(for_create)?;
-csl_spl_token::src::cpi::mint_to(for_mint_to, 1)?;
-csl_spl_token::src::cpi::set_authority(for_set_authority, 0, None)?;
+	csl_spl_token::src::cpi::initialize_mint_2(for_initialize_mint_2, 0, *wallet.key, None)?;
+	csl_spl_assoc_token::src::cpi::create(for_create)?;
+	csl_spl_token::src::cpi::mint_to(for_mint_to, 1)?;
+	csl_spl_token::src::cpi::set_authority(for_set_authority, 0, None)?;
 ```
 
 #### Burn business logic
@@ -152,7 +154,7 @@ csl_spl_token::src::cpi::set_authority(for_set_authority, 0, None)?;
 Copy and paste the following code just below the comment line `// Implement your business logic here...` in the file `burn.rs`
 
 ```rust
-gem.data.assoc_account = None;
+video.data.assoc_account = None;
 csl_spl_token::src::cpi::burn(for_burn, 1)?;
 ```
 
@@ -161,14 +163,14 @@ csl_spl_token::src::cpi::burn(for_burn, 1)?;
 Copy and paste the following code just below the comment line `// Implement your business logic here...` in the file `transfer.rs`
 
 ```rust
-gem.data.assoc_account = Some(*destination.key);
+video.data.assoc_account = Some(*destination.key);
 
-// Create the ATA account for new owner if it hasn't been created
-if assoc_token_account.lamports() == 0 {
-    csl_spl_assoc_token::src::cpi::create(for_create)?;
-}
+	// Create the ATA account for new owner if it hasn't been created
+	if assoc_token_account.lamports() == 0 {
+		csl_spl_assoc_token::src::cpi::create(for_create)?;
+	}
 
-csl_spl_token::src::cpi::transfer_checked(for_transfer_checked, 1, 0)?;
+	csl_spl_token::src::cpi::transfer_checked(for_transfer_checked, 1, 0)?;
 ```
 
 ### 4. Build and deploy the program
@@ -231,8 +233,8 @@ import * as os from "os";
 import {
     burnSendAndConfirm,
     CslSplTokenPDAs,
-    deriveGemMetadataPDA,
-    getGemMetadata,
+    deriveVideoNftMetadataPDA,
+    getVideoNftMetadata,
     initializeClient,
     mintSendAndConfirm,
     transferSendAndConfirm,
@@ -240,11 +242,12 @@ import {
 import {getMinimumBalanceForRentExemptAccount, getMint, TOKEN_PROGRAM_ID,} from "@solana/spl-token";
 
 async function main(feePayer: Keypair) {
-    const connection = new Connection("http://127.0.0.1:8899/", {
+    const args = process.argv.slice(2);
+    const connection = new Connection("https://api.devnet.solana.com", {
         commitment: "confirmed",
     });
 
-    const progId = new PublicKey("PASTE_YOUR_PROGRAM_ID");
+    const progId = new PublicKey(args[0]!);
 
     initializeClient(progId, connection);
 
@@ -293,16 +296,16 @@ async function main(feePayer: Keypair) {
     );
 
     /**
-     * Derive the Gem Metadata so we can retrieve it later
+     * Derive the Video Metadata so we can retrieve it later
      */
-    const [gemPub] = deriveGemMetadataPDA(
+    const [videoPub] = deriveVideoNftMetadataPDA(
         {
             mint: mint.publicKey,
         },
         progId,
     );
-    console.info("+==== Gem Metadata Address ====+");
-    console.info(gemPub.toBase58());
+    console.info("+==== Video Metadata Address ====+");
+    console.info(videoPub.toBase58());
 
     /**
      * Derive the John Doe's Associated Token Account, this account will be
@@ -335,9 +338,9 @@ async function main(feePayer: Keypair) {
     await mintSendAndConfirm({
         wallet: johnDoeWallet.publicKey,
         assocTokenAccount: johnDoeATA,
-        color: "Purple",
-        rarity: "Rare",
-        shortDescription: "Only possible to collect from the lost temple event",
+        videoUrl: "https://videonfts.com/afunnyvideo",
+        publisher: "mike",
+        category: "funny",
         signers: {
             feePayer: feePayer,
             funding: feePayer,
@@ -355,12 +358,12 @@ async function main(feePayer: Keypair) {
     console.info(mintAccount);
 
     /**
-     * Get the Gem Metadata
+     * Get the Video Metadata
      */
-    let gem = await getGemMetadata(gemPub);
-    console.info("+==== Gem Metadata ====+");
-    console.info(gem);
-    console.assert(gem!.assocAccount!.toBase58(), johnDoeATA.toBase58());
+    let video = await getVideoNftMetadata(videoPub);
+    console.info("+==== Video Metadata ====+");
+    console.info(video);
+    console.assert(video!.assocAccount!.toBase58(), johnDoeATA.toBase58());
 
     /**
      * Transfer John Doe's NFT to Jane Doe Wallet (technically, the Associated Token Account)
@@ -388,12 +391,12 @@ async function main(feePayer: Keypair) {
     console.info(mintAccount);
 
     /**
-     * Get the Gem Metadata
+     * Get the Video Metadata
      */
-    gem = await getGemMetadata(gemPub);
-    console.info("+==== Gem Metadata ====+");
-    console.info(gem);
-    console.assert(gem!.assocAccount!.toBase58(), janeDoeATA.toBase58());
+    video = await getVideoNftMetadata(videoPub);
+    console.info("+==== Video Metadata ====+");
+    console.info(video);
+    console.assert(video!.assocAccount!.toBase58(), janeDoeATA.toBase58());
 
     /**
      * Burn the NFT
@@ -417,12 +420,12 @@ async function main(feePayer: Keypair) {
     console.info(mintAccount);
 
     /**
-     * Get the Gem Metadata
+     * Get the Video Metadata
      */
-    gem = await getGemMetadata(gemPub);
-    console.info("+==== Gem Metadata ====+");
-    console.info(gem);
-    console.assert(typeof gem!.assocAccount, "undefined");
+    video = await getVideoNftMetadata(videoPub);
+    console.info("+==== Video Metadata ====+");
+    console.info(video);
+    console.assert(typeof video!.assocAccount, "undefined");
 }
 
 fs.readFile(path.join(os.homedir(), ".config/solana/id.json")).then((file) =>
